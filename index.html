@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Platform Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .plans-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 30px 0;
+        }
+
+        .plan-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            width: 280px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .bronze { border-top: 4px solid #cd7f32; }
+        .silver { border-top: 4px solid #c0c0c0; }
+        .gold { border-top: 4px solid #ffd700; }
+
+        .video-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+            background: #000;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        #timer {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            z-index: 1;
+        }
+
+        #videoPlayer {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .modal input {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .email-alert {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center;">Video Streaming Platform</h1>
+
+    <div class="plans-container">
+        <div class="plan-card bronze">
+            <h2>Bronze Plan</h2>
+            <p class="price">₹10/month</p>
+            <p>7 minutes video access</p>
+            <button onclick="showPaymentModal('bronze', 10)">Upgrade</button>
+        </div>
+
+        <div class="plan-card silver">
+            <h2>Silver Plan</h2>
+            <p class="price">₹50/month</p>
+            <p>10 minutes video access</p>
+            <button onclick="showPaymentModal('silver', 50)">Upgrade</button>
+        </div>
+
+        <div class="plan-card gold">
+            <h2>Gold Plan</h2>
+            <p class="price">₹100/month</p>
+            <p>Unlimited video access</p>
+            <button onclick="showPaymentModal('gold', 100)">Upgrade</button>
+        </div>
+    </div>
+
+    <div class="video-container">
+        <div id="timer">Free Plan: 5:00 remaining</div>
+        <video id="videoPlayer" controls>
+            <source src="Ultimate Wild Animals Collection in 8K ULTRA HD _ 8K TV.mp" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+
+    <div id="paymentModal" class="modal">
+        <h3>Upgrade to <span id="selectedPlan"></span></h3>
+        <p>Amount: ₹<span id="planAmount">0</span></p>
+        
+        <input type="email" 
+               id="userEmail" 
+               placeholder="Enter your email" 
+               required
+               style="margin-bottom: 15px;">
+
+        <input type="text" 
+               placeholder="Card Number (Demo: 4111 1111 1111 1111)" 
+               pattern="\d{16}"
+               required>
+
+        <input type="text" 
+               placeholder="Expiry (MM/YY)" 
+               pattern="\d{2}/\d{2}"
+               required>
+
+        <input type="text" 
+               placeholder="CVV (Demo: 123)" 
+               pattern="\d{3}"
+               required>
+
+        <button onclick="processPayment()" 
+                style="background: #4CAF50; color: white; width: 100%; padding: 12px; margin-top: 15px;">
+            Pay Now
+        </button>
+
+        <button onclick="closeModal()" 
+                style="background: #f44336; color: white; width: 100%; padding: 12px; margin-top: 10px;">
+            Cancel
+        </button>
+    </div>
+
+    <div id="emailAlert" class="email-alert">
+        <span id="emailMessage"></span>
+        <button onclick="downloadInvoice()" 
+                style="background: #ffffff33; border: none; color: white; margin-left: 15px; padding: 5px 10px;">
+            Download Invoice
+        </button>
+    </div>
+
+    <script>
+        const plans = {
+            free: { time: 5 * 60 },
+            bronze: { time: 7 * 60, price: 10 },
+            silver: { time: 10 * 60, price: 50 },
+            gold: { time: Infinity, price: 100 }
+        };
+
+        let currentPlan = 'free';
+        let userEmail = '';
+        let currentTransaction = null;
+        let timer;
+        let isPlaying = false;
+        let remainingTime = plans.free.time;
+        const video = document.getElementById('videoPlayer');
+
+        // Video event listeners
+        video.addEventListener('play', () => {
+            isPlaying = true;
+            startTimer();
+        });
+
+        video.addEventListener('pause', () => {
+            isPlaying = false;
+            clearInterval(timer);
+        });
+
+        video.addEventListener('ended', () => {
+            isPlaying = false;
+            clearInterval(timer);
+        });
+
+        function showPaymentModal(plan, amount) {
+            document.getElementById('selectedPlan').textContent = plan.toUpperCase();
+            document.getElementById('planAmount').textContent = amount;
+            document.getElementById('paymentModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('paymentModal').style.display = 'none';
+        }
+
+        function processPayment() {
+            const inputs = document.querySelectorAll('#paymentModal input');
+            const valid = Array.from(inputs).every(input => input.checkValidity());
+            
+            if(valid) {
+                userEmail = document.getElementById('userEmail').value;
+                currentPlan = document.getElementById('selectedPlan').textContent.toLowerCase();
+                currentTransaction = `TX-${Date.now()}`;
+                remainingTime = plans[currentPlan].time;
+                
+                closeModal();
+                startTimer();
+                showEmailNotification();
+                if(isPlaying) video.play();
+            } else {
+                alert('Please fill all fields correctly\nUse demo card: 4111 1111 1111 1111\nExp: 12/30 CVV: 123');
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timer);
+            let seconds = remainingTime;
+            
+            const updateTimer = () => {
+                if(!isPlaying || currentPlan === 'gold') {
+                    if(currentPlan === 'gold') {
+                        document.getElementById('timer').textContent = "Gold Plan: Unlimited Access 🎉";
+                    }
+                    return;
+                }
+
+                if(seconds <= 0) {
+                    video.pause();
+                    document.getElementById('timer').textContent = "Time Expired! ⏰";
+                    clearInterval(timer);
+                    return;
+                }
+
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                document.getElementById('timer').textContent = 
+                    `${currentPlan.toUpperCase()} Plan: ${mins}:${secs.toString().padStart(2, '0')} remaining`;
+                
+                remainingTime = seconds;
+                seconds--;
+            };
+
+            updateTimer();
+            timer = setInterval(updateTimer, 1000);
+        }
+
+        function showEmailNotification() {
+            const emailAlert = document.getElementById('emailAlert');
+            document.getElementById('emailMessage').textContent = `📧 Invoice sent to ${userEmail}`;
+            emailAlert.style.display = 'block';
+            setTimeout(() => emailAlert.style.display = 'none', 5000);
+        }
+
+        function downloadInvoice() {
+            const invoiceContent = `
+                INVOICE #${currentTransaction}
+                ----------------------------
+                Email: ${userEmail}
+                Plan: ${currentPlan.toUpperCase()}
+                Amount: ₹${plans[currentPlan].price}
+                Date: ${new Date().toLocaleDateString()}
+                Valid Until: ${new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString()}
+
+                Thank you for your payment!
+                This is a demo invoice for internship purposes.
+            `;
+
+            const blob = new Blob([invoiceContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `invoice_${currentTransaction}.txt`;
+            a.click();
+        }
+
+        // Initialize
+        startTimer();
+    </script>
+</body>
+</html>
